@@ -138,7 +138,23 @@ canvas.onpointermove = function(event) {
   mouse.y = y;
   mouse.sig = sig;
   mouse.rho = rho;
+  onMouseMove();
 }
+
+canvas.onpointerdown = function(event) {
+  this.setPointerCapture(event.pointerId);
+  onMouseDown();
+}
+
+canvas.onpointerup = function(event) {
+  this.releasePointerCapture(event.pointerId);
+  onMouseUp();
+}
+
+
+
+
+
 
 function pfromid(id) {
   return [8 - (id >> 3 & 7), 8 - (id & 7)];
@@ -297,6 +313,11 @@ fillText(i,
 );
 }});
 
+excludedSquares = [
+  0,1,2,3,8,9,10,11,16,17,18,19,24,25,26,27,
+  64,65,66,67,72,73,74,75,80,81,82,83,88,89,90,91,
+];
+
 rookLines = [[
   [/*0,1,2,3,*/4,5,6,7,71,70,69,68/*,67,66,65,64*/],
   [/*8,9,10,11,*/12,13,14,15,79,78,77,76/*,75,74,73,72*/],
@@ -376,6 +397,204 @@ whitePawnCaptures = [
 [113,57],[114,58],[115,59],[116,60],[117,61],[118,62],[119,63],[],
 ];
 
+blackPawnCaptures = [
+[],[],[],[],[13],[12,14],[13,15],[14,79],
+[],[],[],[],[21],[20,22],[21,23],[22,87],
+[],[],[],[],[29],[28,30],[29,31],[30,95],
+[],[],[],[],[35,37],[36,38],[37,39],[38,103],
+[41],[40,42],[41,43],[42,44],[43,45],[44,46],[45,47],[46,111],
+[49],[48,50],[49,51],[50,52],[51,53],[52,54],[53,55],[54,119],
+[57],[56,58],[57,59],[58,60],[59,61],[60,62],[61,63],[62,127],
+[],[],[],[],[],[],[],[],
+[],[],[],[],[77],[76,78],[77,79],[78,15],
+[],[],[],[],[85],[84,86],[85,87],[86,23],
+[],[],[],[],[93],[92,94],[93,95],[94,31],
+[],[],[],[],[99,101],[100,102],[101,103],[102,39],
+[105],[104,106],[105,107],[106,108],[107,109],[108,110],[109,111],[110,47],
+[113],[112,114],[113,115],[114,116],[115,117],[116,118],[117,119],[118,55],
+[121],[120,122],[121,123],[122,124],[123,125],[124,126],[125,127],[126,63],
+[],[],[],[],[],[],[],[]];
+
+castleSquares = [[104,112],[48,56],[69,70],[6,7]];
+
+
+
+
+var state = {};
+state.turn = 0;
+state.castling = 0b0000;
+state.enpassant = -1;
+state.halfmove = 0;
+state.fullmove = 1;
+
+
+
+class Piece {
+  static all = [];
+
+  constructor(color,type,square) {
+    if (Piece.at(square))
+      throw `cannot create a piece on an occupied square`;
+    this.color = color;
+    this.type = type;
+    this.square = square;
+    Piece.all.push(this);
+  }
+
+  static create(color,type,square) {
+    switch (type) {
+      case 'pawn': return new Pawn(color,square);
+      case 'knight': return new Knight(color,square);
+      case 'bishop': return new Bishop(color,square);
+      case 'rook': return new Rook(color,square);
+      case 'queen': return new Queen(color,square);
+      case 'king': return new King(color,square);
+    }
+  }
+
+  static at(square) {
+    return Piece.all.find(piece => piece.square === square);
+  }
+
+  delete() {
+    var all = Piece.all;
+    var index = all.indexOf(this);
+    if (index > -1) all.splice(index,1);
+  }
+
+}
+
+class Pawn extends Piece {
+  constructor(color,square) {
+    super(color,'pawn',square);
+    if (color === 'white') this.img = images.wp;
+    else if (color === 'black') this.img = images.bp;
+  }
+
+  getMoves() {
+    
+  }
+}
+
+class Knight extends Piece {
+  constructor(color,square) {
+    super(color,'knight',square);
+    if (color === 'white') this.img = images.wn;
+    else if (color === 'black') this.img = images.bn;
+  }
+}
+
+class Bishop extends Piece {
+  constructor(color,square) {
+    super(color,'bishop',square);
+    if (color === 'white') this.img = images.wb;
+    else if (color === 'black') this.img = images.bb;
+  }
+}
+
+class Rook extends Piece {
+  constructor(color,square) {
+    super(color,'rook',square);
+    if (color === 'white') this.img = images.wr;
+    else if (color === 'black') this.img = images.br;
+  }
+}
+
+class Queen extends Piece {
+  constructor(color,square) {
+    super(color,'queen',square);
+    if (color === 'white') this.img = images.wq;
+    else if (color === 'black') this.img = images.bq;
+  }
+}
+
+class King extends Piece {
+  constructor(color,square) {
+    super(color,'king',square);
+    if (color === 'white') this.img = images.wk;
+    else if (color === 'black') this.img = images.bk;
+  }
+}
+
+
+
+
+function newGame() {
+  state.turn = 0;
+  state.castling = 0b1111;
+  state.enpassant = -1;
+  state.halfmove = 0;
+  state.fullmove = 1;
+  Piece.all.length = 0;
+  Piece.create('white','pawn',33);
+  Piece.create('white','pawn',41);
+  Piece.create('white','pawn',49);
+  Piece.create('white','pawn',57);
+  Piece.create('white','pawn',97);
+  Piece.create('white','pawn',105);
+  Piece.create('white','pawn',113);
+  Piece.create('white','pawn',121);
+  Piece.create('white','rook',32);
+  Piece.create('white','knight',40);
+  Piece.create('white','bishop',48);
+  Piece.create('white','queen',56);
+  Piece.create('white','king',120);
+  Piece.create('white','bishop',112);
+  Piece.create('white','knight',104);
+  Piece.create('white','rook',96);
+  Piece.create('black','pawn',12);
+  Piece.create('black','pawn',13);
+  Piece.create('black','pawn',14);
+  Piece.create('black','pawn',15);
+  Piece.create('black','pawn',79);
+  Piece.create('black','pawn',78);
+  Piece.create('black','pawn',77);
+  Piece.create('black','pawn',76);
+  Piece.create('black','rook',4);
+  Piece.create('black','knight',5);
+  Piece.create('black','bishop',6);
+  Piece.create('black','queen',7);
+  Piece.create('black','king',71);
+  Piece.create('black','bishop',70);
+  Piece.create('black','knight',69);
+  Piece.create('black','rook',68);
+}
+
+
+newGame();
+
+mouse.grabbing = null;
+
+function onMouseDown() {
+  var piece = Piece.at(mouse.id);
+  if (piece) mouse.grabbing = piece;
+}
+
+function onMouseUp() {
+  if (mouse.grabbing) {
+    if (excludedSquares.includes(mouse.id)) {
+      mouse.grabbing = null;
+      return;
+    }
+    var piece = Piece.at(mouse.id);
+    if (!piece) mouse.grabbing.square = mouse.id;
+    if (piece && piece.color !== mouse.grabbing.color) {
+      piece.delete();
+      mouse.grabbing.square = mouse.id;
+    }
+    mouse.grabbing = null;
+  }
+}
+
+function onMouseMove() {
+
+}
+
+
+
+
+
+
 function draw() {
 
 ctx.clearRect(0,0,s,s);
@@ -427,6 +646,25 @@ drawBez(4,8,20,0,36,8);
 drawLine(20,4,20,36);
 ctx.stroke();
 ctx.closePath();
+
+Piece.all.forEach(piece => {
+if (mouse.grabbing === piece) return;
+  var sq = piece.square;
+  var sig = 8 - (sq >> 3 & 7);
+  var rho = 8 - (sq & 7);
+  drawImage(piece.img,sig-.5,rho-.5,sq < 64,piece.color === 'black');
+});
+
+if (mouse.grabbing) {
+  var piece = mouse.grabbing;
+  var sq = mouse.id;
+  var sig = mouse.sig;
+  var rho = mouse.rho;
+  drawImage(piece.img,sig,rho,sq < 64,piece.color === 'black');
+}
+
+
+
 /*
 drawImage(images.wp,3.5,6.5);
 drawImage(images.wp,2.5,6.5);
