@@ -302,6 +302,49 @@ fillText(i,
 );
 }});
 
+ctx.lineCap = 'round';
+
+tdc = bxx.map((bx,i) => {
+var [b0,b1,b2,b3,b4,b5,
+  b6,b7,b8,b9,b10,b11,
+  b12,b13,b14,b15] = bx.flat();
+return function() {
+ctx.lineWidth = Math.max(Math.abs(b6 - b0),Math.abs(b7-b1))*s/80;
+ctx.beginPath();
+moveTo(
+  (b0+b4+b8+b12)/4,
+  (b1+b5+b9+b13)/4,
+);
+lineTo(
+  (b0+b4+b8+b12)/4,
+  (b1+b5+b9+b13)/4,
+);
+ctx.stroke();
+ctx.lineWidth = 1;
+ctx.closePath();
+}});
+
+tnc = nxx.map((bx,i) => {
+var [b0,b1,b2,b3,b4,b5,
+  b6,b7,b8,b9,b10,b11,
+  b12,b13,b14,b15] = bx.flat();
+return function() {
+ctx.lineWidth = Math.max(Math.abs(b6 - b0),Math.abs(b7-b1))*s/80;
+ctx.beginPath();
+moveTo(
+  (b0+b4+b8+b12)/4,
+  (b1+b5+b9+b13)/4,
+);
+lineTo(
+  (b0+b4+b8+b12)/4,
+  (b1+b5+b9+b13)/4,
+);
+ctx.stroke();
+ctx.lineWidth = 1;
+ctx.closePath();
+}});
+
+cc = tdc.concat(tnc);
 tbb = bxx.concat(nxx).map((bx,i) => {
 var [b0,b1,b2,b3,b4,b5,
   b6,b7,b8,b9,b10,b11,
@@ -417,20 +460,18 @@ blackPawnCaptures = [
 
 castleSquares = [[104,112],[48,56],[69,70],[6,7]];
 
-
-
-
-var state = {};
-state.turn = 0;
-state.castling = 0b0000;
-state.enpassant = -1;
-state.halfmove = 0;
-state.fullmove = 1;
-
+whiteBackRank = [32,40,48,56,120,112,104,96];
+blackBackRank = [4,5,6,7,71,70,69,68];
 
 
 class Piece {
   static all = [];
+
+  static wk = -1;
+  static bk = -1;
+
+  static wrs = [-1,-1];
+  static brs = [-1,-1];
 
   constructor(color,type,square) {
     if (Piece.at(square))
@@ -438,7 +479,22 @@ class Piece {
     this.color = color;
     this.type = type;
     this.square = square;
+    if (type === 'king') {
+      if (color === 'white') Piece.wk = square;
+      if (color === 'black') Piece.bk = square;
+    }
+    this.move0 = true;
     Piece.all.push(this);
+  }
+
+  static clear() {
+    Piece.all.length = 0;
+    Piece.wrs.length = 0;
+    Piece.brs.length = 0;
+    Piece.wrs.push(-1,-1);
+    Piece.brs.push(-1,-1);
+    Piece.wk = -1;
+    Piece.bk = -1;
   }
 
   static create(color,type,square) {
@@ -462,7 +518,12 @@ class Piece {
     if (index > -1) all.splice(index,1);
   }
 
+  getMoves() {
+    return [];
+  }
+
 }
+
 
 class Pawn extends Piece {
   constructor(color,square) {
@@ -471,9 +532,6 @@ class Pawn extends Piece {
     else if (color === 'black') this.img = images.bp;
   }
 
-  getMoves() {
-    
-  }
 }
 
 class Knight extends Piece {
@@ -518,14 +576,13 @@ class King extends Piece {
 
 
 
+function makeMove(move) {
+
+}
+
 
 function newGame() {
-  state.turn = 0;
-  state.castling = 0b1111;
-  state.enpassant = -1;
-  state.halfmove = 0;
-  state.fullmove = 1;
-  Piece.all.length = 0;
+  Piece.clear();
   Piece.create('white','pawn',33);
   Piece.create('white','pawn',41);
   Piece.create('white','pawn',49);
@@ -565,32 +622,390 @@ newGame();
 
 mouse.grabbing = null;
 
+
+
+var gameState = {
+  turn:          'white',
+  epSquare:      -1,
+  epPawn:        -1,
+  selectedMoves: [],
+};
+
+var selectedPiece = null;
+
+var opp  = c => c === 'white' ? 'black' : 'white';
+var excl = sq => excludedSquares.includes(sq);
+
+
+var whitePromoSet = new Set(whitePawnLines.map(l => l[l.length-1]));
+var blackPromoSet = new Set(blackPawnLines.map(l => l[l.length-1]));
+
+
+function slideMoves(sq, color, lineGroups) {
+  var out = [];
+  for (var lines of lineGroups) {
+    for (var line of lines) {
+      var idx = line.indexOf(sq);
+      if (idx === -1) continue;
+      for (var i = idx+1; i < line.length; i++) {
+        var t = line[i]; if (excl(t)) break;
+        var p = Piece.at(t);
+        if (p) { if (p.color !== color) out.push(t); break; }
+        out.push(t);
+      }
+      for (var i = idx-1; i >= 0; i--) {
+        var t = line[i]; if (excl(t)) break;
+        var p = Piece.at(t);
+        if (p) { if (p.color !== color) out.push(t); break; }
+        out.push(t);
+      }
+    }
+  }
+  return out;
+}
+
+
+function jumpSqs(sq, color, table) {
+  return (table[sq] || []).filter(t =>
+    !excl(t) && (!Piece.at(t) || Piece.at(t).color !== color));
+}
+
+
+function isAttacked(sq, byColor) {
+  for (var p of Piece.all) {
+    if (p.color !== byColor) continue;
+    switch (p.type) {
+      case 'pawn': {
+        var caps = byColor==='white' ? whitePawnCaptures : blackPawnCaptures;
+        if ((caps[p.square]||[]).includes(sq)) return true;
+        break;
+      }
+      case 'knight':
+        if ((knightOffsets[p.square]||[]).includes(sq)) return true; break;
+      case 'king':
+        if ((kingOffsets[p.square]||[]).includes(sq)) return true; break;
+      case 'bishop':
+        if (slideMoves(p.square,byColor,bishopLines).includes(sq)) return true; break;
+      case 'rook':
+        if (slideMoves(p.square,byColor,rookLines).includes(sq)) return true; break;
+      case 'queen':
+        if (slideMoves(p.square,byColor,rookLines).includes(sq) ||
+            slideMoves(p.square,byColor,bishopLines).includes(sq)) return true; break;
+    }
+  }
+  return false;
+}
+
+function inCheck(color) {
+  var ks = color==='white' ? Piece.wk : Piece.bk;
+  return ks !== -1 && isAttacked(ks, opp(color));
+}
+
+
+function isLegal(mover, to, epRemoveSq) {
+  var from  = mover.square;
+  var snap  = Piece.all.slice();
+  var oldWk = Piece.wk, oldBk = Piece.bk;
+
+  if (epRemoveSq !== undefined && epRemoveSq !== -1) {
+    var ep = Piece.at(epRemoveSq);
+    if (ep) Piece.all.splice(Piece.all.indexOf(ep), 1);
+  }
+  var cap = Piece.at(to);
+  if (cap) Piece.all.splice(Piece.all.indexOf(cap), 1);
+
+  mover.square = to;
+  if (mover.type==='king') { if (mover.color==='white') Piece.wk=to; else Piece.bk=to; }
+
+  var ok = !inCheck(mover.color);
+
+
+  Piece.all.length = 0; for (var p of snap) Piece.all.push(p);
+  mover.square = from; Piece.wk = oldWk; Piece.bk = oldBk;
+  return ok;
+}
+
+
+Pawn.prototype.getMoves = function() {
+  var moves = [], sq = this.square, color = this.color;
+  var lines  = color==='white' ? whitePawnLines    : blackPawnLines;
+  var caps   = color==='white' ? whitePawnCaptures : blackPawnCaptures;
+  var promos = color==='white' ? whitePromoSet     : blackPromoSet;
+
+  var line, idx = -1;
+  for (var l of lines) { var i = l.indexOf(sq); if (i !== -1) { line=l; idx=i; break; } }
+  if (!line || idx <= 0) return [];
+
+
+  if (idx+1 < line.length) {
+    var to = line[idx+1];
+    if (!excl(to) && !Piece.at(to) && isLegal(this, to)) {
+      if (promos.has(to)) {
+        for (var pt of ['queen','rook','bishop','knight'])
+          moves.push({from:sq, to, type:'promo', promo:pt});
+      } else {
+        moves.push({from:sq, to, type:'normal'});
+        if (idx===1 && idx+2 < line.length) {
+          var to2 = line[idx+2];
+          if (!excl(to2) && !Piece.at(to2) && isLegal(this, to2))
+            moves.push({from:sq, to:to2, type:'double', epSq:line[idx+1]});
+        }
+      }
+    }
+  }
+
+
+  for (var to of (caps[sq]||[])) {
+    if (excl(to)) continue;
+    var target = Piece.at(to);
+    if (target && target.color !== color && isLegal(this, to))
+      if (promos.has(to)) {
+        for (var pt of ['queen','rook','bishop','knight'])
+          moves.push({from:sq, to, type:'promo', promo:pt});
+      } else {
+        moves.push({from:sq, to, type:'capture'});
+      }
+    if (to === gameState.epSquare) {
+      var epP = Piece.at(gameState.epPawn);
+      if (epP && epP.color !== color && isLegal(this, to, gameState.epPawn)) {
+        if (promos.has(to)) {
+          for (var pt of ['queen','rook','bishop','knight'])
+            moves.push({from:sq, to, type:'enpassant_promo', promo:pt, epPawn:gameState.epPawn});
+        } else {
+          moves.push({from:sq, to, type:'enpassant', epPawn:gameState.epPawn});
+        }
+      }
+    }
+  }
+  return moves;
+};
+
+
+Knight.prototype.getMoves = function() {
+  var sq=this.square, c=this.color;
+  return jumpSqs(sq, c, knightOffsets)
+    .filter(to => isLegal(this, to))
+    .map(to => ({from:sq, to, type:'normal'}));
+};
+
+
+Bishop.prototype.getMoves = function() {
+  var sq=this.square, c=this.color;
+  return slideMoves(sq, c, bishopLines)
+    .filter(to => isLegal(this, to))
+    .map(to => ({from:sq, to, type:'normal'}));
+};
+
+
+Rook.prototype.getMoves = function() {
+  var sq=this.square, c=this.color;
+  return slideMoves(sq, c, rookLines)
+    .filter(to => isLegal(this, to))
+    .map(to => ({from:sq, to, type:'normal'}));
+};
+
+
+Queen.prototype.getMoves = function() {
+  var sq=this.square, c=this.color;
+  return [...slideMoves(sq,c,rookLines), ...slideMoves(sq,c,bishopLines)]
+    .filter(to => isLegal(this, to))
+    .map(to => ({from:sq, to, type:'normal'}));
+};
+
+
+
+var CASTLE_DATA = [
+  [120, 96,  castleSquares[0][0], castleSquares[0][1], 'white'],
+  [120, 32,  castleSquares[1][0], castleSquares[1][1], 'white'],
+  [71,  68,  castleSquares[2][0], castleSquares[2][1], 'black'],
+  [71,  4,   castleSquares[3][0], castleSquares[3][1], 'black'],
+];
+
+function findLineWith(sq1, sq2) {
+  for (var lines of rookLines)
+    for (var line of lines)
+      if (line.includes(sq1) && line.includes(sq2)) return line;
+  return null;
+}
+
+King.prototype.getMoves = function() {
+  var sq=this.square, color=this.color;
+  var moves = jumpSqs(sq, color, kingOffsets)
+    .filter(to => isLegal(this, to))
+    .map(to => ({from:sq, to, type:'normal'}));
+
+  if (!this.move0 || inCheck(color)) return moves;
+
+  for (var [ks,rs,kd,rd,c] of CASTLE_DATA) {
+    if (c !== color || ks !== sq) continue;
+    var rook = Piece.at(rs);
+    if (!rook || rook.type!=='rook' || rook.color!==color || !rook.move0) continue;
+
+    var line = findLineWith(sq, rs);
+    if (!line) continue;
+
+    var ki=line.indexOf(sq), ri=line.indexOf(rs), kdi=line.indexOf(kd);
+
+    var lo=Math.min(ki,ri), hi=Math.max(ki,ri), clear=true;
+    for (var j=lo+1; j<hi; j++) {
+      if (Piece.at(line[j]) || excl(line[j])) { clear=false; break; }
+    }
+    if (!clear) continue;
+
+    var step=kdi>ki?1:-1, safe=true;
+    for (var j=ki+step; j!==kdi+step; j+=step) {
+      var tsq = line[j];
+      this.square = tsq;
+      if (color==='white') Piece.wk=tsq; else Piece.bk=tsq;
+      var hit = isAttacked(tsq, opp(color));
+      this.square = sq;
+      if (color==='white') Piece.wk=sq; else Piece.bk=sq;
+      if (hit) { safe=false; break; }
+    }
+    if (!safe) continue;
+
+    moves.push({from:sq, to:kd, type:'castle', rookFrom:rs, rookTo:rd});
+  }
+  return moves;
+};
+
+
+function makeMove(move) {
+  var piece = Piece.at(move.from);
+  if (!piece) return;
+
+  gameState.epSquare = -1;
+  gameState.epPawn   = -1;
+
+  switch (move.type) {
+    case 'castle': {
+      var rook = Piece.at(move.rookFrom);
+      if (rook) { rook.square = move.rookTo; rook.move0 = false; }
+      if (piece.color==='white') Piece.wk=move.to; else Piece.bk=move.to;
+      piece.square = move.to; piece.move0 = false;
+      break;
+    }
+    case 'enpassant': {
+      var ep = Piece.at(move.epPawn); if (ep) ep.delete();
+      piece.square = move.to; piece.move0 = false;
+      break;
+    }
+    case 'promo': {
+      var cap = Piece.at(move.to); if (cap) cap.delete();
+      var col = piece.color; piece.delete();
+      Piece.create(col, move.promo, move.to);
+      break;
+    }
+    case 'enpassant_promo': {
+      var ep = Piece.at(move.epPawn); if (ep) ep.delete();
+      var col = piece.color; piece.delete();
+      Piece.create(col, move.promo, move.to);
+      break;
+    }
+    case 'double': {
+      piece.square = move.to; piece.move0 = false;
+      gameState.epSquare = move.epSq;
+      gameState.epPawn   = move.to;
+      break;
+    }
+    default: {
+      var cap = Piece.at(move.to); if (cap) cap.delete();
+      if (piece.type==='king') {
+        if (piece.color==='white') Piece.wk=move.to; else Piece.bk=move.to;
+      }
+      piece.square = move.to; piece.move0 = false;
+    }
+  }
+
+  gameState.turn = opp(gameState.turn);
+  gameState.selectedMoves = [];
+  selectedPiece = null;
+}
+
+mouse.leftFrom = null;
+mouse.wasSelected = false;
+mouse.selected = null;
+
 function onMouseDown() {
+  if (mouse.selected !== null) {
+    if (uimake(mouse.id)) return;
+  }
   var piece = Piece.at(mouse.id);
-  if (piece) mouse.grabbing = piece;
+  if (piece) {
+    mouse.leftFrom = mouse.id;
+    mouse.grabbing = piece;
+    mouse.wasSelected = mouse.selected === mouse.id;
+    mouse.selected = mouse.id;
+    selectedPiece   = piece;
+    if (piece.color === gameState.turn) {
+      gameState.selectedMoves = piece.getMoves();
+      return
+    }
+  }
+    mouse.selected = null
+    selectedPiece   = null;
+    gameState.selectedMoves = [];
+  
 }
 
 function onMouseUp() {
-  if (mouse.grabbing) {
-    if (excludedSquares.includes(mouse.id)) {
-      mouse.grabbing = null;
-      return;
-    }
-    var piece = Piece.at(mouse.id);
-    if (!piece) mouse.grabbing.square = mouse.id;
-    if (piece && piece.color !== mouse.grabbing.color) {
-      piece.delete();
-      mouse.grabbing.square = mouse.id;
-    }
-    mouse.grabbing = null;
+  if (!mouse.grabbing) return;
+  var piece    = mouse.grabbing;
+  var targetSq = mouse.id;
+  mouse.grabbing = null;
+  if (uimake(targetSq)) return;
+  if (mouse.id === mouse.leftFrom && mouse.wasSelected) {
+    selectedPiece = null;
+    mouse.selected = null;
+    gameState.selectedMoves = [];
   }
 }
 
-function onMouseMove() {
 
+function uimake(targetSq) {
+  if (!excl(targetSq) && targetSq !== undefined) {
+    var move = gameState.selectedMoves.find(m => m.to === targetSq);
+    if (move) {
+      // auto-promote 4 now
+      if (move.type === 'promo')
+        move = gameState.selectedMoves.find(m => m.to===targetSq && m.promo==='queen') || move;
+      makeMove(move);
+      return true;
+    }
+  }
 }
 
+function onMouseMove() {}
 
+
+
+var sqDots = bxx.concat(nxx).map(bx => {
+  var f = bx.flat();
+  var b0=f[0],b1=f[1], b4=f[4],b5=f[5], b8=f[8],b9=f[9], b12=f[12],b13=f[13];
+  var cx = (b0 + b4 + b8 + b12) / 4;
+  var cy = (b1 + b5 + b9 + b13) / 4;
+  var w = (Math.abs(b8 - b0) + Math.abs(b4 - b12)) / 2;
+  var h = (Math.abs(b5 - b1) + Math.abs(b9 - b13)) / 2;
+  var r = Math.max(w, h) * 0.2;
+  return [cx, cy, r];
+});
+
+function hl() {
+  for (var move of gameState.selectedMoves) {
+    var to = move.to;
+    if (to < 0 || to >= sqDots.length || excl(to)) continue;
+    var [cx, cy, r] = sqDots[to];
+    var sc = s / 40;
+
+    ctx.fillStyle = 'black';
+    ctx.globalAlpha = .25;
+    ctx.beginPath();
+    ctx.arc(cx * sc, (40 - cy) * sc, r * sc, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.closePath();
+    ctx.globalAlpha = 1;
+  }
+}
 
 
 
@@ -700,10 +1115,10 @@ drawImage(images.bb,7.5,1.5,true,true);
 drawImage(images.bn,7.5,2.5,true,true);
 drawImage(images.br,7.5,3.5,true,true);
 */
-test();
+//test();
 
 }
-
+/*
 function hl() {
 var sig = mouse.sig;
 var rho = mouse.rho;
@@ -716,7 +1131,7 @@ ctx.fillStyle = '#ffff0040';
   ctx.fill();
   ctx.closePath();
 }
-
+*/
 
 
 function loop() {
@@ -726,4 +1141,8 @@ function loop() {
 
 loop();
 
-function test() {}
+function test(){
+ctx.strokeStyle = 'black';
+tdc.forEach(fn => fn());
+tnc.forEach(fn => fn());
+}
