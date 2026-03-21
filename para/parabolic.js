@@ -117,6 +117,9 @@ IP1 = (i,j) => [I1,J1,K1,L1,M1,N1,O1,P1,Q1][i][j];
 // I[1], I1[0], I[0]
 
 var canvas = document.createElement('canvas');
+canvas.style.touchAction = 'pinch-zoom';
+canvas.addEventListener('touchstart', e => { if (e.touches.length === 1) e.preventDefault(); }, { passive: false });
+canvas.addEventListener('touchmove',  e => { if (e.touches.length === 1) e.preventDefault(); }, { passive: false });
 var ctx = canvas.getContext('2d');
 document.body.appendChild(canvas);
 
@@ -125,9 +128,10 @@ var s;
 var mouse = {};
 mouse.id = null;
 
-canvas.onpointermove = function(event) {
-  var x = event.offsetX;
-  var y = event.offsetY;
+function updateMouse(event) {
+  var rect = canvas.getBoundingClientRect();
+  var x = event.clientX - rect.left;
+  var y = event.clientY - rect.top;
   x = x * 80/s - 40;
   y = -(y * 80/s - 40);
   var [sig,rho] = toParabolic(x,y);
@@ -138,19 +142,32 @@ canvas.onpointermove = function(event) {
   mouse.y = y;
   mouse.sig = sig;
   mouse.rho = rho;
+}
+
+canvas.onpointermove = function(event) {
+  if (event.isPrimary === false) return;
+  updateMouse(event);
   onMouseMove();
 }
 
 canvas.onpointerdown = function(event) {
+  if (event.isPrimary === false) return;
   this.setPointerCapture(event.pointerId);
+  updateMouse(event);
   onMouseDown();
 }
 
 canvas.onpointerup = function(event) {
+  if (event.isPrimary === false) return;
   this.releasePointerCapture(event.pointerId);
+  updateMouse(event);
   onMouseUp();
 }
 
+canvas.onpointercancel = function(event) {
+  if (event.isPrimary === false) return;
+  onMouseUp();
+};
 
 
 
