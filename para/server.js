@@ -1,20 +1,20 @@
 'use strict';
 
-const express                   = require('express');
-const http                      = require('http');
-const WebSocket                 = require('ws');
-const path                      = require('path');
-const { createGame }            = require('./state');
+const express = require('express');
+const http = require('http');
+const WebSocket = require('ws');
+const path = require('path');
+const { createGame } = require('./state');
 
-const app                       = express();
-const server                    = http.createServer(app);
-const wss                       = new WebSocket.Server({ server });
-
-const rooms                     = new Map();
-let   randomQueue               = null;
-let   clientCount               = 0;
-
+const app = express();
 app.use(express.static(path.join(__dirname, 'public')));
+
+const server = http.createServer(app);
+const wss = new WebSocket.Server({ server });
+
+const rooms = new Map();
+let randomQueue = null;
+let clientCount = 0;
 
 function genCode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -180,7 +180,5 @@ wss.on('connection', ws => {
   });
 });
 
-app.use(express.static(path.join(__dirname, "public")));
-
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, "0.0.0.0", () => console.log(`Serving on port ${PORT}`));
+server.listen(PORT, "0.0.0.0", () => console.log(`Serving on port ${PORT}`));
