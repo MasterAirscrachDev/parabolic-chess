@@ -58,7 +58,7 @@ border-radius:8px;border:none;width:140px">`;
 
   function connect() {
     var proto = location.protocol === 'https:' ? 'wss' : 'ws';
-    ws = new WebSocket(proto + '://' + location.host);
+    ws = new WebSocket('parabolic-chess-production.up.railway.app');
 
     ws.onopen = () => showLobby();
 
