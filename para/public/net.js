@@ -36,10 +36,10 @@ border-radius:8px;border:none;width:140px">`;
       ${btn('Create / Join Room', 'btn-code')}
       ${btn('Play Offline', 'btn-offline')}
     `);
-    document.getElementById('btn-random').onclick = () => ws_join(null);
+    document.getElementById('btn-random').onclick = () => ws_join({ random: true });
     document.getElementById('btn-code').onclick = () => {
       var code = document.getElementById('code-input').value.trim().toUpperCase();
-      ws_join(code || genLocalCode());
+      ws_join({ code: code || genLocalCode() });
     };
     document.getElementById('code-input').onkeydown = e => {
       if (e.key === 'Enter') document.getElementById('btn-code').click();
@@ -139,9 +139,14 @@ border-radius:8px;border:none;width:140px">`;
     };
   }
 
-  function ws_join(code) {
-    setOverlay('<div>Connecting...</div>');
-    ws.send(JSON.stringify({ type: 'join', code: code || null }));
+  function ws_join({ random = false, code = null } = {}) {
+    if (random) {
+      setOverlay('<div>Connecting...</div>'); // no code shown
+      ws.send(JSON.stringify({ type: 'join', random: true }));
+    } else {
+      setOverlay('<div>Connecting...</div>');
+      ws.send(JSON.stringify({ type: 'join', code }));
+    }
   }
 
   function showGameOver(status) {
