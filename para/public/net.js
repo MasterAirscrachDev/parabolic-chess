@@ -75,7 +75,9 @@ border-radius:8px;border:none;width:140px">`;
             </div>
             <div style="font-size:13px;opacity:.6">or they can enter it on the main screen</div>
           ` : ''}
+          ${btn('Back to Lobby', 'btn-lobby')}
         `);
+        document.getElementById('btn-lobby').onclick = () => location.reload();
         return;
       }
 
