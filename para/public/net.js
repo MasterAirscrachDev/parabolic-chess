@@ -68,11 +68,13 @@ border-radius:8px;border:none;width:140px">`;
       if (msg.type === 'waiting') {
         setOverlay(`
           <div>Waiting for opponent...</div>
-          <div style="font-size:14px;opacity:.8">Share this code with a friend:</div>
-          <div style="font-size:36px;letter-spacing:8px;background:#fff2;padding:10px 20px;border-radius:8px">
-            ${msg.code}
-          </div>
-          <div style="font-size:13px;opacity:.6">or they can enter it on the main screen</div>
+          ${msg.code ? `
+            <div style="font-size:14px;opacity:.8">Share this code with a friend:</div>
+            <div style="font-size:36px;letter-spacing:8px;background:#fff2;padding:10px 20px;border-radius:8px">
+              ${msg.code}
+            </div>
+            <div style="font-size:13px;opacity:.6">or they can enter it on the main screen</div>
+          ` : ''}
         `);
         return;
       }
