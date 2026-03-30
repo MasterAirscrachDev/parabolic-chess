@@ -69,6 +69,21 @@ wss.on('connection', ws => {
     if (msg.type === 'join') {
       const wantsCode = msg.code ? msg.code.toUpperCase().trim() : null;
 
+      if (msg.random) {
+        if (randomQueue && randomQueue.readyState === WebSocket.OPEN && randomQueue !== ws) {
+          const other = randomQueue;
+          randomQueue = null;
+          const code = genCode();
+          console.log(`[random] matched ${other._id} + ${ws._id}`);
+          createRoom(other, ws, code);
+        } else {
+          randomQueue = ws;
+          console.log(`[random] ${ws._id} queued, waiting for opponent...`);
+          send(ws, { type: 'waiting' }); // no code sent for random
+        }
+        return;
+      }
+
       if (wantsCode) {
         if (rooms.has(wantsCode)) {
           const room = rooms.get(wantsCode);
@@ -87,20 +102,6 @@ wss.on('connection', ws => {
           ws._roomCode = wantsCode;
           console.log(`[${wantsCode}] ${ws._id} created room, waiting...`);
           send(ws, { type: 'waiting', code: wantsCode });
-        }
-      } else {
-        if (randomQueue && randomQueue.readyState === WebSocket.OPEN && randomQueue !== ws) {
-          const other = randomQueue;
-          randomQueue = null;
-          const code = genCode();
-          console.log(`[random] matched ${other._id} + ${ws._id}`);
-          createRoom(other, ws, code);
-        } else {
-          randomQueue = ws;
-          const code = genCode();
-          ws._pendingCode = code;
-          console.log(`[random] ${ws._id} queued, waiting for opponent...`);
-          send(ws, { type: 'waiting', code });
         }
       }
       return;
