@@ -117,9 +117,6 @@ IP1 = (i,j) => [I1,J1,K1,L1,M1,N1,O1,P1,Q1][i][j];
 // I[1], I1[0], I[0]
 
 var canvas = document.createElement('canvas');
-canvas.style.touchAction = 'pinch-zoom';
-canvas.addEventListener('touchstart', e => { if (e.touches.length === 1) e.preventDefault(); }, { passive: false });
-canvas.addEventListener('touchmove',  e => { if (e.touches.length === 1) e.preventDefault(); }, { passive: false });
 var ctx = canvas.getContext('2d');
 document.body.appendChild(canvas);
 
