@@ -73,7 +73,6 @@ border-radius:8px;border:none;width:140px">`;
             <div style="font-size:36px;letter-spacing:8px;background:#fff2;padding:10px 20px;border-radius:8px">
               ${msg.code}
             </div>
-            <div style="font-size:13px;opacity:.6">or they can enter it on the main screen</div>
           ` : ''}
           ${btn('Back to Lobby', 'btn-lobby')}
         `);
