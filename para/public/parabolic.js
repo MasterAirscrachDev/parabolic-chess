@@ -925,6 +925,7 @@ function uimake(targetSq) {
       if (move.type === 'promo')
         move = gameState.selectedMoves.find(m => m.to===targetSq && m.promo==='queen') || move;
       if (window._netMove) {
+        makeMove(move); 
         window._netMove(move);
         gameState.selectedMoves = [];
         selectedPiece = null;
